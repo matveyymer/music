@@ -10,35 +10,35 @@
 :root {
   --bg: #fff;
   --text: #111;
-  --muted: #777;
+  --muted: #666;
   --accent: #000;
   --outline: rgba(0,0,0,0.15);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
 }
 body {
   margin: 0;
-  padding: 0;
   height: 100vh;
-  background: var(--bg);
-  color: var(--text);
   display: flex;
   flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
   overflow: hidden;
 }
 
-/* --------- Вкладки --------- */
+/* ---- Общие виды ---- */
 .view {
   display: none;
   flex: 1;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: center;
   padding: 20px;
+  overflow-y: auto;
 }
 .view.active { display: flex; }
 
-/* --------- Сейчас играет --------- */
+/* ---- Сейчас играет ---- */
 .cover {
   width: 320px;
   height: 320px;
@@ -50,6 +50,7 @@ body {
   justify-content: center;
   font-size: 64px;
   overflow: hidden;
+  border-radius: 12px;
 }
 .cover img { width: 100%; height: 100%; object-fit: cover; }
 .title { font-size: 22px; font-weight: 600; margin-top: 20px; }
@@ -65,7 +66,7 @@ body {
   font-size: 12px; color: var(--muted);
 }
 
-/* --------- Кнопки управления --------- */
+/* ---- Кнопки управления ---- */
 .controls {
   display: flex; justify-content: center; align-items: center;
   gap: 40px; margin-top: 20px;
@@ -82,40 +83,59 @@ button {
 button:hover { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.25); }
 .play { width: 88px; height: 88px; font-size: 32px; border: 2.5px solid rgba(0,0,0,0.2); }
 
-/* --------- Библиотека --------- */
+input[type=file] { margin-top: 20px; color: var(--muted); font-size: 14px; }
+
+/* ---- Библиотека ---- */
 .library {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 20px;
-  padding: 20px;
-  overflow-y: auto;
+  width: 100%;
+  padding: 10px 20px 100px;
+  box-sizing: border-box;
 }
 .track-card {
-  width: 140px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  align-items: flex-start;
   cursor: pointer;
 }
 .track-card img {
-  width: 140px; height: 140px;
-  object-fit: cover; border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  width: 100%;
+  aspect-ratio: 1/1;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
 }
-.track-card .name {
-  font-size: 14px;
-  margin-top: 6px;
+.track-card .info {
+  margin-top: 8px;
+  text-align: left;
+  width: 100%;
+}
+.track-card .title {
+  font-size: 15px;
+  font-weight: 600;
   color: var(--text);
-  font-weight: 500;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.track-card .artist {
+  font-size: 13px;
+  color: var(--muted);
   white-space: nowrap;
-  width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* --------- Док-бар --------- */
+/* ---- Артисты ---- */
+.view p {
+  color: var(--muted);
+  margin-top: 40px;
+  font-size: 16px;
+}
+
+/* ---- Док-бар ---- */
 .dock {
   width: 100%;
   height: 100px;
@@ -126,6 +146,9 @@ button:hover { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.25); }
   border-top: 1px solid rgba(0,0,0,0.1);
   font-size: 18px;
   backdrop-filter: blur(15px);
+  position: fixed;
+  bottom: 0;
+  left: 0;
 }
 .tab {
   color: var(--muted);
@@ -135,8 +158,6 @@ button:hover { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.25); }
   transition: color 0.2s;
 }
 .tab.active { color: var(--accent); font-weight: 600; }
-
-input[type=file] { margin-top: 20px; color: var(--muted); font-size: 14px; }
 </style>
 </head>
 <body>
@@ -157,7 +178,7 @@ input[type=file] { margin-top: 20px; color: var(--muted); font-size: 14px; }
 
   <div class="controls">
     <button id="prev">⏮</button>
-    <button class="play" id="play">▶️</button>
+    <button class="play" id="play">►</button>
     <button id="next">⏭</button>
   </div>
 
@@ -170,7 +191,7 @@ input[type=file] { margin-top: 20px; color: var(--muted); font-size: 14px; }
   <div class="library" id="library"></div>
 </div>
 
-<!-- Артисты (заглушка) -->
+<!-- Артисты -->
 <div class="view" id="artistsView">
   <p>Раздел артистов пока пуст 🕊️</p>
 </div>
@@ -201,7 +222,7 @@ let playlist = [];
 let index = 0;
 let isPlaying = false;
 
-/* ---------- Навигация ---------- */
+/* ---- Навигация ---- */
 document.querySelectorAll('.tab').forEach(tab=>{
   tab.addEventListener('click',()=>{
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -212,7 +233,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
   });
 });
 
-/* ---------- Загрузка треков ---------- */
+/* ---- Загрузка треков ---- */
 fileInput.addEventListener('change', e => {
   playlist = Array.from(e.target.files);
   index = 0;
@@ -226,14 +247,19 @@ function renderLibrary() {
     const card = document.createElement('div');
     card.className = 'track-card';
     const img = document.createElement('img');
-    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjUwIiBmaWxsPSIjZWVlIiAvPjx0ZXh0IHg9IjUwIiB5PSI1NiIgc3R5bGU9ImZpbGw6I2NjYztmb250LXNpemU6MjBweDtmb250LWZhbWlseTpzeXN0ZW0tVUlNb25vO3RleHQtYW5jaG9yOm1pZGRsZSI+🎵PC90ZXh0Pjwvc3ZnPg==';
+    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiPjxjaXJjbGUgY3g9Ijc1IiBjeT0iNzUiIHI9Ijc1IiBmaWxsPSIjZWVlIi8+PHRleHQgeD0iNzUiIHk9IjgzIiBzdHlsZT0iZmlsbDojY2NjO2ZvbnQtc2l6ZToyNXB4O2ZvbnQtZmFtaWx5OnN5c3RlbS1VSS1tb25vO3RleHQtYW5jaG9yOm1pZGRsZSI+🎵PC90ZXh0Pjwvc3ZnPg==';
+    const info = document.createElement('div');
+    info.className = 'info';
     const name = document.createElement('div');
-    name.className = 'name';
+    name.className = 'title';
     name.textContent = file.name.replace(/\.[^/.]+$/, '');
-    card.append(img, name);
+    const artist = document.createElement('div');
+    artist.className = 'artist';
+    artist.textContent = "Неизвестный исполнитель";
+    info.append(name, artist);
+    card.append(img, info);
     library.append(card);
 
-    // Загружаем обложку через jsmediatags
     window.jsmediatags.read(file, {
       onSuccess: tag => {
         const pic = tag.tags.picture;
@@ -242,6 +268,8 @@ function renderLibrary() {
           const imageUrl = `data:${pic.format};base64,${btoa(base64)}`;
           img.src = imageUrl;
         }
+        if (tag.tags.title) name.textContent = tag.tags.title;
+        if (tag.tags.artist) artist.textContent = tag.tags.artist;
       }
     });
 
@@ -253,7 +281,7 @@ function renderLibrary() {
   });
 }
 
-/* ---------- Проигрывание ---------- */
+/* ---- Проигрывание ---- */
 function loadTrack(i) {
   if (!playlist[i]) return;
   const file = playlist[i];
