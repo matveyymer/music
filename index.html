@@ -102,10 +102,16 @@ input[type=file] { margin-top: 20px; color: var(--muted); font-size: 14px; }
 }
 .track-card img {
   width: 100%;
-  aspect-ratio: 1/1;
+  height: 0;
+  padding-bottom: 100%; /* квадратная форма */
   object-fit: cover;
   border-radius: 12px;
   box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  background: #f3f3f3;
+}
+.track-card img[src] {
+  height: auto;
+  padding-bottom: 0;
 }
 .track-card .info {
   margin-top: 8px;
