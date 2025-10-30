@@ -4,8 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Музыкальный плеер</title>
-
-<!-- Подключаем библиотеку для чтения обложек -->
 <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
 
 <style>
@@ -25,24 +23,22 @@ body {
   color: var(--text);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
   overflow: hidden;
 }
 
-/* Основной контейнер */
-.main {
+/* --------- Вкладки --------- */
+.view {
+  display: none;
   flex: 1;
-  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  width: 100%;
-  box-sizing: border-box;
+  padding: 20px;
 }
+.view.active { display: flex; }
 
-/* Обложка */
+/* --------- Сейчас играет --------- */
 .cover {
   width: 320px;
   height: 320px;
@@ -55,87 +51,71 @@ body {
   font-size: 64px;
   overflow: hidden;
 }
-.cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+.cover img { width: 100%; height: 100%; object-fit: cover; }
+.title { font-size: 22px; font-weight: 600; margin-top: 20px; }
+.artist { font-size: 14px; color: var(--muted); margin-top: 4px; }
 
-/* Информация */
-.title {
-  font-size: 22px;
-  font-weight: 600;
-  margin-top: 20px;
-}
-.artist {
-  font-size: 14px;
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-/* Прогресс */
 .progress {
-  width: 80%;
-  height: 5px;
-  background: rgba(0,0,0,0.08);
-  border-radius: 3px;
-  position: relative;
-  margin: 18px 0;
-  cursor: pointer;
+  width: 80%; height: 5px; background: rgba(0,0,0,0.08);
+  border-radius: 3px; margin: 18px 0; cursor: pointer;
 }
-.bar {
-  height: 100%;
-  width: 0%;
-  background: var(--accent);
-  border-radius: inherit;
-}
+.bar { height: 100%; width: 0%; background: var(--accent); border-radius: inherit; }
 .time {
-  width: 80%;
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--muted);
+  width: 80%; display: flex; justify-content: space-between;
+  font-size: 12px; color: var(--muted);
 }
 
-/* Контролы */
+/* --------- Кнопки управления --------- */
 .controls {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 40px;
-  margin-top: 20px;
+  display: flex; justify-content: center; align-items: center;
+  gap: 40px; margin-top: 20px;
 }
 button {
   background: rgba(255,255,255,0.7);
   border: 2px solid var(--outline);
   border-radius: 50%;
   color: var(--text);
-  width: 64px;
-  height: 64px;
-  font-size: 24px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  width: 64px; height: 64px; font-size: 24px;
+  cursor: pointer; transition: all 0.2s ease;
   backdrop-filter: blur(6px);
 }
-button:hover {
-  background: rgba(0,0,0,0.05);
-  border-color: rgba(0,0,0,0.25);
-}
-.play {
-  width: 88px;
-  height: 88px;
-  font-size: 32px;
-  border: 2.5px solid rgba(0,0,0,0.2);
-}
+button:hover { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.25); }
+.play { width: 88px; height: 88px; font-size: 32px; border: 2.5px solid rgba(0,0,0,0.2); }
 
-/* Файл */
-input[type=file] {
-  margin-top: 20px;
-  color: var(--muted);
+/* --------- Библиотека --------- */
+.library {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+  overflow-y: auto;
+}
+.track-card {
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+}
+.track-card img {
+  width: 140px; height: 140px;
+  object-fit: cover; border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+.track-card .name {
   font-size: 14px;
+  margin-top: 6px;
+  color: var(--text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 130px;
 }
 
-/* Док-бар */
+/* --------- Док-бар --------- */
 .dock {
   width: 100%;
   height: 100px;
@@ -154,15 +134,15 @@ input[type=file] {
   flex: 1;
   transition: color 0.2s;
 }
-.tab.active {
-  color: var(--accent);
-  font-weight: 600;
-}
+.tab.active { color: var(--accent); font-weight: 600; }
+
+input[type=file] { margin-top: 20px; color: var(--muted); font-size: 14px; }
 </style>
 </head>
 <body>
 
-<div class="main">
+<!-- Сейчас играет -->
+<div class="view active" id="nowPlaying">
   <div class="cover" id="cover">🎵</div>
   <div class="title" id="title">Ничего не играет</div>
   <div class="artist" id="artist">Загрузите трек</div>
@@ -177,7 +157,7 @@ input[type=file] {
 
   <div class="controls">
     <button id="prev">⏮</button>
-    <button class="play" id="play">►</button>
+    <button class="play" id="play">▶️</button>
     <button id="next">⏭</button>
   </div>
 
@@ -185,15 +165,25 @@ input[type=file] {
   <audio id="audio"></audio>
 </div>
 
+<!-- Библиотека -->
+<div class="view" id="libraryView">
+  <div class="library" id="library"></div>
+</div>
+
+<!-- Артисты (заглушка) -->
+<div class="view" id="artistsView">
+  <p>Раздел артистов пока пуст 🕊️</p>
+</div>
+
+<!-- Нижний док -->
 <div class="dock">
-  <div class="tab active" data-view="now">▶ Сейчас играет</div>
-  <div class="tab" data-view="playlists">🎧 Плейлисты</div>
-  <div class="tab" data-view="artists">🎤 Артисты</div>
+  <div class="tab active" data-view="nowPlaying">▶ Сейчас играет</div>
+  <div class="tab" data-view="libraryView">📚 Библиотека</div>
+  <div class="tab" data-view="artistsView">🎤 Артисты</div>
 </div>
 
 <script>
 const audio = document.getElementById('audio');
-const fileInput = document.getElementById('fileInput');
 const playBtn = document.getElementById('play');
 const nextBtn = document.getElementById('next');
 const prevBtn = document.getElementById('prev');
@@ -204,27 +194,75 @@ const totalTimeEl = document.getElementById('totalTime');
 const titleEl = document.getElementById('title');
 const artistEl = document.getElementById('artist');
 const cover = document.getElementById('cover');
+const fileInput = document.getElementById('fileInput');
+const library = document.getElementById('library');
 
 let playlist = [];
 let index = 0;
 let isPlaying = false;
 
+/* ---------- Навигация ---------- */
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.view;
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById(target).classList.add('active');
+  });
+});
+
+/* ---------- Загрузка треков ---------- */
 fileInput.addEventListener('change', e => {
   playlist = Array.from(e.target.files);
   index = 0;
+  renderLibrary();
   loadTrack(index);
 });
 
+function renderLibrary() {
+  library.innerHTML = '';
+  playlist.forEach((file, i)=>{
+    const card = document.createElement('div');
+    card.className = 'track-card';
+    const img = document.createElement('img');
+    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjUwIiBmaWxsPSIjZWVlIiAvPjx0ZXh0IHg9IjUwIiB5PSI1NiIgc3R5bGU9ImZpbGw6I2NjYztmb250LXNpemU6MjBweDtmb250LWZhbWlseTpzeXN0ZW0tVUlNb25vO3RleHQtYW5jaG9yOm1pZGRsZSI+🎵PC90ZXh0Pjwvc3ZnPg==';
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = file.name.replace(/\.[^/.]+$/, '');
+    card.append(img, name);
+    library.append(card);
+
+    // Загружаем обложку через jsmediatags
+    window.jsmediatags.read(file, {
+      onSuccess: tag => {
+        const pic = tag.tags.picture;
+        if (pic) {
+          const base64 = pic.data.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
+          const imageUrl = `data:${pic.format};base64,${btoa(base64)}`;
+          img.src = imageUrl;
+        }
+      }
+    });
+
+    card.addEventListener('click', ()=>{
+      index = i;
+      loadTrack(index);
+      showView('nowPlaying');
+    });
+  });
+}
+
+/* ---------- Проигрывание ---------- */
 function loadTrack(i) {
   if (!playlist[i]) return;
   const file = playlist[i];
   const url = URL.createObjectURL(file);
   audio.src = url;
   titleEl.textContent = file.name.replace(/\.[^/.]+$/, '');
-  artistEl.textContent = "Загружено с устройства";
+  artistEl.textContent = "Локальный файл";
   cover.innerHTML = '🎵';
 
-  // Читаем теги и извлекаем обложку
   window.jsmediatags.read(file, {
     onSuccess: tag => {
       const pic = tag.tags.picture;
@@ -243,26 +281,11 @@ function loadTrack(i) {
   playTrack();
 }
 
-function playTrack() {
-  audio.play();
-  isPlaying = true;
-  playBtn.textContent = '❚❚';
-}
-function pauseTrack() {
-  audio.pause();
-  isPlaying = false;
-  playBtn.textContent = '►';
-}
-
+function playTrack() { audio.play(); isPlaying = true; playBtn.textContent = '❚❚'; }
+function pauseTrack() { audio.pause(); isPlaying = false; playBtn.textContent = '►'; }
 playBtn.addEventListener('click', () => isPlaying ? pauseTrack() : playTrack());
-nextBtn.addEventListener('click', () => {
-  index = (index + 1) % playlist.length;
-  loadTrack(index);
-});
-prevBtn.addEventListener('click', () => {
-  index = (index - 1 + playlist.length) % playlist.length;
-  loadTrack(index);
-});
+nextBtn.addEventListener('click', () => { index = (index + 1) % playlist.length; loadTrack(index); });
+prevBtn.addEventListener('click', () => { index = (index - 1 + playlist.length) % playlist.length; loadTrack(index); });
 
 audio.addEventListener('timeupdate', () => {
   const { currentTime, duration } = audio;
@@ -272,7 +295,6 @@ audio.addEventListener('timeupdate', () => {
     totalTimeEl.textContent = formatTime(duration);
   }
 });
-
 progress.addEventListener('click', e => {
   const percent = e.offsetX / progress.offsetWidth;
   audio.currentTime = percent * audio.duration;
@@ -282,6 +304,12 @@ function formatTime(sec) {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector(`[data-view="${id}"]`).classList.add('active');
 }
 </script>
 </body>
