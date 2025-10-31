@@ -1,10 +1,13 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Музыкальный плеер</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Музыкальный плеер — квадратные обложки + Google Drive</title>
+
+<!-- jsmediatags для чтения тегов и обложек -->
 <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
+<!-- Google API -->
 <script src="https://apis.google.com/js/api.js"></script>
 
 <style>
@@ -13,96 +16,107 @@
   --text: #111;
   --muted: #666;
   --accent: #000;
-  --outline: rgba(0,0,0,0.15);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+  --outline: rgba(0,0,0,0.12);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, sans-serif;
 }
 body {
   margin: 0;
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
 }
+
+nav {
+  display: flex;
+  justify-content: space-around;
+  border-top: 1px solid var(--outline);
+  padding: 12px 0;
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  background: var(--bg);
+}
+nav button {
+  border: none;
+  background: none;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--text);
+  opacity: 0.7;
+}
+nav button.active {
+  opacity: 1;
+  font-weight: 600;
+}
+
 .view {
   display: none;
   flex: 1;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   padding: 20px;
   overflow-y: auto;
+  margin-bottom: 60px;
 }
-.view.active { display: flex; }
+.view.active {
+  display: flex;
+}
 
-/* ---- Квадратные обложки ---- */
+/* квадратные обложки */
 .cover {
   width: min(80vw, 320px);
   aspect-ratio: 1 / 1;
   background: #f3f3f3;
-  margin-top: 40px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  margin-top: 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 64px;
-  overflow: hidden;
-  border-radius: 12px;
 }
-.cover img { width: 100%; height: 100%; object-fit: cover; }
-
-.library {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 20px;
+.cover img {
   width: 100%;
-  padding: 10px 20px 100px;
-  box-sizing: border-box;
-}
-.track-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  cursor: pointer;
-}
-.track-card img {
-  width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 100%;
   object-fit: cover;
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-  background: #f3f3f3;
 }
-.track-card .info {
-  margin-top: 8px;
-  width: 100%;
-}
-.track-card .title {
-  font-size: 15px;
+
+/* текст под обложкой */
+.title {
+  font-size: 18px;
   font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
+  margin-top: 12px;
+  text-align: center;
+  max-width: 90%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.track-card .artist {
+.artist {
   font-size: 13px;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-top: 4px;
 }
 
-/* ---- Прогресс и кнопки ---- */
+/* прогресс */
 .progress {
   width: 80%;
-  height: 5px;
+  height: 6px;
   background: rgba(0,0,0,0.08);
-  border-radius: 3px;
-  margin: 18px 0;
+  border-radius: 999px;
+  margin: 16px 0;
   cursor: pointer;
 }
-.bar { height: 100%; width: 0%; background: var(--accent); border-radius: inherit; }
+.bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: inherit;
+}
 .time {
   width: 80%;
   display: flex;
@@ -110,240 +124,266 @@ body {
   font-size: 12px;
   color: var(--muted);
 }
+
+/* кнопки управления */
 .controls {
   display: flex;
-  justify-content: center;
+  gap: 24px;
   align-items: center;
-  gap: 40px;
-  margin-top: 20px;
+  margin-top: 14px;
 }
-button {
-  background: rgba(255,255,255,0.7);
-  border: 2px solid var(--outline);
-  border-radius: 50%;
-  color: var(--text);
-  width: 64px;
-  height: 64px;
-  font-size: 24px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(6px);
-}
-button:hover { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.25); }
-.play { width: 88px; height: 88px; font-size: 32px; }
-
-/* ---- Настройки ---- */
-#settingsView button {
-  padding: 10px 20px;
-  border-radius: 8px;
+button.control {
+  background: var(--bg);
   border: 1px solid var(--outline);
-  background: #f8f8f8;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  font-size: 20px;
   cursor: pointer;
-  margin-top: 10px;
+}
+button.play {
+  width: 80px;
+  height: 80px;
+  font-size: 26px;
 }
 
-/* ---- Нижний док ---- */
-.dock {
+/* библиотека */
+.library {
   width: 100%;
-  height: 100px;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  background: rgba(0,0,0,0.05);
-  border-top: 1px solid rgba(0,0,0,0.1);
-  font-size: 18px;
-  backdrop-filter: blur(15px);
-  position: fixed;
-  bottom: 0;
-  left: 0;
+  padding: 14px 20px 120px;
+  box-sizing: border-box;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
-.tab {
-  color: var(--muted);
-  text-align: center;
+.track-card {
   cursor: pointer;
-  flex: 1;
-  transition: color 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
-.tab.active { color: var(--accent); font-weight: 600; }
+.track-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+.track-card .info {
+  width: 100%;
+  margin-top: 8px;
+}
+.track-card .title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.track-card .artist {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* настройки */
+.settings {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+.settings button {
+  padding: 12px 20px;
+  font-size: 15px;
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+}
 </style>
 </head>
+
 <body>
-
-<!-- Сейчас играет -->
-<div class="view active" id="nowPlaying">
-  <div class="cover" id="cover">🎵</div>
-  <div class="title" id="title">Ничего не играет</div>
-  <div class="artist" id="artist">Загрузите трек</div>
-  <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
-  <div class="time"><span id="currentTime">0:00</span><span id="totalTime">0:00</span></div>
+<!-- Вкладка Сейчас играет -->
+<div class="view active" id="now">
+  <div class="cover" id="cover-now"><img id="cover-img" src="" alt="Обложка"></div>
+  <div class="title" id="now-title">Нет трека</div>
+  <div class="artist" id="now-artist">—</div>
+  <div class="progress"><div class="bar" id="bar"></div></div>
+  <div class="time"><span id="time-current">0:00</span><span id="time-total">0:00</span></div>
   <div class="controls">
-    <button id="prev">⏮</button>
-    <button class="play" id="play">►</button>
-    <button id="next">⏭</button>
+    <button class="control" id="prev">⏮</button>
+    <button class="control play" id="play">▶</button>
+    <button class="control" id="next">⏭</button>
   </div>
-  <input type="file" id="fileInput" accept=".mp3,.wav,.ogg,.m4a,.flac,.aac" multiple>
-  <audio id="audio"></audio>
+  <audio id="player"></audio>
 </div>
 
-<!-- Библиотека -->
-<div class="view" id="libraryView"><div class="library" id="library"></div></div>
-
-<!-- Настройки -->
-<div class="view" id="settingsView">
-  <h3>⚙️ Настройки</h3>
-  <button id="connectDrive">Подключить Google Drive</button>
-  <button id="uploadToDrive">Загрузить музыку в Drive</button>
-  <button id="loadFromDrive">Загрузить треки из Drive</button>
+<!-- Вкладка библиотека -->
+<div class="view" id="library">
+  <input type="file" id="fileInput" multiple accept="audio/*" />
+  <div class="library" id="tracks"></div>
 </div>
 
-<!-- Док -->
-<div class="dock">
-  <div class="tab active" data-view="nowPlaying">▶ Сейчас играет</div>
-  <div class="tab" data-view="libraryView">📚 Библиотека</div>
-  <div class="tab" data-view="settingsView">⚙️ Настройки</div>
+<!-- Вкладка настройки -->
+<div class="view" id="settings">
+  <div class="cover"><img src="https://i.imgur.com/Zz4upOq.png" alt="Обложка" /></div>
+  <div class="settings">
+    <button id="connectDrive">Подключить Google Drive</button>
+    <button id="uploadDrive">Загрузить треки в Drive</button>
+  </div>
 </div>
+
+<!-- Навигация -->
+<nav>
+  <button class="active" data-view="now">Сейчас играет</button>
+  <button data-view="library">Библиотека</button>
+  <button data-view="settings">Настройки</button>
+</nav>
 
 <script>
-const audio = document.getElementById('audio');
-const playBtn = document.getElementById('play');
-const nextBtn = document.getElementById('next');
-const prevBtn = document.getElementById('prev');
+// === Основные элементы ===
+const views = document.querySelectorAll('.view');
+const navButtons = document.querySelectorAll('nav button');
+const player = document.getElementById('player');
 const bar = document.getElementById('bar');
-const progress = document.getElementById('progress');
-const currentTimeEl = document.getElementById('currentTime');
-const totalTimeEl = document.getElementById('totalTime');
-const titleEl = document.getElementById('title');
-const artistEl = document.getElementById('artist');
-const cover = document.getElementById('cover');
-const fileInput = document.getElementById('fileInput');
-const library = document.getElementById('library');
+const nowTitle = document.getElementById('now-title');
+const nowArtist = document.getElementById('now-artist');
+const coverImg = document.getElementById('cover-img');
 
-let playlist = [];
-let index = 0;
-let isPlaying = false;
+let currentTrack = 0;
+let tracks = [];
 
-/* Навигация */
-document.querySelectorAll('.tab').forEach(tab=>{
-  tab.addEventListener('click',()=>{
-    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-    tab.classList.add('active');
-    const target = tab.dataset.view;
-    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-    document.getElementById(target).classList.add('active');
+// === Переключение вкладок ===
+navButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    navButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    views.forEach(v => v.classList.remove('active'));
+    document.getElementById(btn.dataset.view).classList.add('active');
   });
 });
 
-/* Загрузка треков локально */
-fileInput.addEventListener('change', e => {
-  playlist = Array.from(e.target.files);
-  index = 0;
-  renderLibrary();
-  loadTrack(index);
-});
-
-function renderLibrary() {
-  library.innerHTML = '';
-  playlist.forEach((file, i)=>{
-    const card = document.createElement('div');
-    card.className = 'track-card';
-    const img = document.createElement('img');
-    img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiPjxjaXJjbGUgY3g9Ijc1IiBjeT0iNzUiIHI9Ijc1IiBmaWxsPSIjZWVlIi8+PHRleHQgeD0iNzUiIHk9IjgzIiBzdHlsZT0iZmlsbDojY2NjO2ZvbnQtc2l6ZToyNXB4O2ZvbnQtZmFtaWx5OnN5c3RlbS1VSS1tb25vO3RleHQtYW5jaG9yOm1pZGRsZSI+🎵PC90ZXh0Pjwvc3ZnPg==';
-    const info = document.createElement('div');
-    info.className = 'info';
-    const name = document.createElement('div');
-    name.className = 'title';
-    name.textContent = file.name.replace(/\.[^/.]+$/, '');
-    const artist = document.createElement('div');
-    artist.className = 'artist';
-    artist.textContent = "Неизвестный исполнитель";
-    info.append(name, artist);
-    card.append(img, info);
-    library.append(card);
-    window.jsmediatags.read(file, {
+// === Добавление треков ===
+document.getElementById('fileInput').addEventListener('change', e => {
+  const files = [...e.target.files];
+  files.forEach(file => {
+    jsmediatags.read(file, {
       onSuccess: tag => {
-        const pic = tag.tags.picture;
-        if (pic) {
-          const base64 = pic.data.reduce((a,b)=>a+String.fromCharCode(b), '');
-          img.src = `data:${pic.format};base64,${btoa(base64)}`;
+        const title = tag.tags.title || file.name;
+        const artist = tag.tags.artist || 'Неизвестный';
+        let imgUrl = '';
+        if (tag.tags.picture) {
+          const data = tag.tags.picture.data;
+          const format = tag.tags.picture.format;
+          const base64 = btoa(String.fromCharCode(...data));
+          imgUrl = `data:${format};base64,${base64}`;
         }
-        if (tag.tags.title) name.textContent = tag.tags.title;
-        if (tag.tags.artist) artist.textContent = tag.tags.artist;
+        tracks.push({ file, title, artist, imgUrl });
+        updateLibrary();
+      },
+      onError: () => {
+        tracks.push({ file, title: file.name, artist: '—', imgUrl: '' });
+        updateLibrary();
       }
     });
-    card.addEventListener('click', ()=>{
-      index = i;
-      loadTrack(index);
-      showView('nowPlaying');
-    });
+  });
+});
+
+function updateLibrary() {
+  const lib = document.getElementById('tracks');
+  lib.innerHTML = '';
+  tracks.forEach((t, i) => {
+    const div = document.createElement('div');
+    div.className = 'track-card';
+    div.innerHTML = `
+      <img src="${t.imgUrl || 'https://i.imgur.com/Zz4upOq.png'}" alt="">
+      <div class="info">
+        <div class="title">${t.title}</div>
+        <div class="artist">${t.artist}</div>
+      </div>`;
+    div.onclick = () => playTrack(i);
+    lib.appendChild(div);
   });
 }
 
-/* Проигрывание */
-function loadTrack(i) {
-  if (!playlist[i]) return;
-  const file = playlist[i];
-  const url = URL.createObjectURL(file);
-  audio.src = url;
-  titleEl.textContent = file.name.replace(/\.[^/.]+$/, '');
-  artistEl.textContent = "Локальный файл";
-  cover.innerHTML = '🎵';
-  playTrack();
+function playTrack(i) {
+  const t = tracks[i];
+  currentTrack = i;
+  nowTitle.textContent = t.title;
+  nowArtist.textContent = t.artist;
+  coverImg.src = t.imgUrl || 'https://i.imgur.com/Zz4upOq.png';
+  player.src = URL.createObjectURL(t.file);
+  player.play();
+  document.getElementById('play').textContent = '⏸';
 }
-function playTrack(){ audio.play(); isPlaying=true; playBtn.textContent='❚❚'; }
-function pauseTrack(){ audio.pause(); isPlaying=false; playBtn.textContent='►'; }
-playBtn.addEventListener('click',()=>isPlaying?pauseTrack():playTrack());
-nextBtn.addEventListener('click',()=>{index=(index+1)%playlist.length;loadTrack(index);});
-prevBtn.addEventListener('click',()=>{index=(index-1+playlist.length)%playlist.length;loadTrack(index);});
-audio.addEventListener('timeupdate',()=>{
-  const {currentTime,duration}=audio;
-  if(duration){
-    bar.style.width=`${(currentTime/duration)*100}%`;
-    currentTimeEl.textContent=formatTime(currentTime);
-    totalTimeEl.textContent=formatTime(duration);
+
+// === Контролы ===
+document.getElementById('play').addEventListener('click', () => {
+  if (player.paused) {
+    player.play();
+    document.getElementById('play').textContent = '⏸';
+  } else {
+    player.pause();
+    document.getElementById('play').textContent = '▶';
   }
 });
-progress.addEventListener('click',e=>{
-  const percent=e.offsetX/progress.offsetWidth;
-  audio.currentTime=percent*audio.duration;
+document.getElementById('next').addEventListener('click', () => {
+  if (tracks.length) playTrack((currentTrack + 1) % tracks.length);
 });
-function formatTime(sec){
-  const m=Math.floor(sec/60);
-  const s=Math.floor(sec%60);
-  return `${m}:${s.toString().padStart(2,'0')}`;
-}
-function showView(id){
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelector(`[data-view="${id}"]`).classList.add('active');
-}
+document.getElementById('prev').addEventListener('click', () => {
+  if (tracks.length) playTrack((currentTrack - 1 + tracks.length) % tracks.length);
+});
 
-/* ---- GOOGLE DRIVE ---- */
-const CLIENT_ID = "ВСТАВЬ_СЮДА_СВОЙ_CLIENT_ID"; // Google Cloud OAuth client_id
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-let tokenClient, gapiInited=false, gisInited=false;
+// === Прогресс ===
+player.ontimeupdate = () => {
+  if (player.duration) bar.style.width = `${(player.currentTime / player.duration) * 100}%`;
+};
 
-document.getElementById('connectDrive').onclick = () => gapiLoad();
+// === Google Drive ===
+const CLIENT_ID = "сюда вставь свой client_id";
+let token = null;
 
-function gapiLoad(){
-  gapi.load('client', async ()=>{
+function loadGapi() {
+  gapi.load("client:picker", async () => {
     await gapi.client.init({
-      apiKey: '', // можно оставить пустым
-      discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+      apiKey: "",
+      clientId: CLIENT_ID,
+      discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+      scope: "https://www.googleapis.com/auth/drive.file"
     });
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: ''
-    });
-    tokenClient.callback = async (resp)=>{
-      if(resp.access_token){
-        alert("✅ Подключение к Google Drive успешно!");
-      }
-    };
-    tokenClient.requestAccessToken({prompt:'consent'});
   });
 }
+loadGapi();
+
+document.getElementById('connectDrive').onclick = async () => {
+  const GoogleAuth = gapi.auth2.getAuthInstance();
+  const user = await GoogleAuth.signIn();
+  token = user.getAuthResponse().access_token;
+  alert("Google Drive подключен!");
+};
+
+document.getElementById('uploadDrive').onclick = async () => {
+  if (!token) return alert("Сначала подключи Google Drive");
+  for (const t of tracks) {
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify({
+      name: t.title, mimeType: "audio/mpeg"
+    })], { type: "application/json" }));
+    form.append("file", t.file);
+    await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+      body: form
+    });
+  }
+  alert("Треки загружены в Google Drive!");
+};
 </script>
 </body>
 </html>
