@@ -3,358 +3,576 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Музыкальный плеер — Google Drive</title>
+<title>Музыкальный плеер — улучшенный</title>
 
+<!-- jsmediatags -->
 <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
+<!-- Google API (оставлено для Drive) -->
 <script src="https://apis.google.com/js/api.js"></script>
 
 <style>
-:root {
-  --bg: #fff;
+/* --- Переменные темы --- */
+:root{
+  --bg: #ffffff;
+  --card: #f7f7f7;
   --text: #111;
-  --muted: #666;
-  --accent: #000;
+  --muted: #777;
+  --accent: #0b84ff;
   --outline: rgba(0,0,0,0.12);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, sans-serif;
+  --glass: rgba(255,255,255,0.6);
+  --radius: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, system-ui, sans-serif;
+  --transition: 180ms cubic-bezier(.2,.9,.2,1);
 }
-body {
-  margin: 0;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  color: var(--text);
-  overflow: hidden;
+body.dark{
+  --bg: #0f1113;
+  --card: #111317;
+  --text: #e6eef8;
+  --muted: #9aa7b2;
+  --accent: #33aaff;
+  --outline: rgba(255,255,255,0.06);
+  --glass: rgba(255,255,255,0.04);
 }
-nav {
-  display: flex;
-  justify-content: space-around;
-  border-top: 1px solid var(--outline);
-  padding: 12px 0;
-  position: fixed;
-  bottom: 0;
-  width: 100%;
-  background: var(--bg);
-}
-nav button {
-  border: none;
-  background: none;
-  font-size: 14px;
-  cursor: pointer;
-  color: var(--text);
-  opacity: 0.7;
-}
-nav button.active {
-  opacity: 1;
-  font-weight: 600;
-}
-.view {
-  display: none;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 20px;
-  overflow-y: auto;
-  margin-bottom: 60px;
-}
-.view.active {
-  display: flex;
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+.app{
+  min-height:100vh;display:flex;flex-direction:column;
 }
 
-/* квадратные обложки */
+/* --- Виды и переходы (плавный fade) --- */
+.views { flex:1; display:flex; position:relative; overflow:hidden }
+.view {
+  position:absolute; inset:0;
+  padding:20px;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+  opacity:0; transform:translateY(6px); pointer-events:none;
+  transition: opacity var(--transition), transform var(--transition);
+}
+.view.active { opacity:1; transform:translateY(0); pointer-events:auto; }
+
+/* --- Обложка строго квадратная --- */
 .cover {
-  width: min(80vw, 320px);
-  aspect-ratio: 1 / 1;
-  background: #f3f3f3;
-  margin-top: 24px;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: min(84vw,360px);
+  aspect-ratio: 1/1;
+  border-radius: var(--radius);
+  overflow:hidden;
+  background:var(--card);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
 }
-.cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.cover img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+/* --- Текст --- */
+.now-title { margin-top:16px; font-weight:700; font-size:20px; max-width:90%; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; text-align:center;}
+.now-artist { margin-top:6px; color:var(--muted); font-size:13px; text-align:center; }
+
+/* --- Прогресс --- */
+.progress { width:80%; height:6px; background:var(--card); border-radius:999px; margin:16px 0; cursor:pointer; }
+.bar { height:100%; width:0%; background:var(--accent); border-radius:inherit; transition:width 120ms linear; }
+.time { width:80%; display:flex; justify-content:space-between; color:var(--muted); font-size:12px; }
+
+/* --- Кнопки: анимация при клике --- */
+.controls { display:flex; gap:20px; align-items:center; margin-top:12px; }
+.btn {
+  width:60px; height:60px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--card); border:1px solid var(--outline); cursor:pointer;
+  transition: transform 150ms cubic-bezier(.2,.9,.2,1), box-shadow 150ms;
 }
-.title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-top: 12px;
-  text-align: center;
-  max-width: 90%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.btn:active{ transform:scale(.96) }
+.play-btn { width:86px;height:86px;font-size:22px; }
+
+/* --- Кнопки: hover эффект --- */
+.btn:hover{ box-shadow: 0 6px 18px rgba(0,0,0,0.08) }
+
+/* --- Библиотека: поиск и карточки --- */
+.library-top { width:100%; max-width:980px; display:flex; gap:12px; align-items:center; margin-top:20px; }
+.search {
+  flex:1; height:44px; border-radius:10px; padding:8px 12px; border:1px solid var(--outline);
+  background:linear-gradient(var(--card), var(--card)); color:var(--text);
 }
-.artist {
-  font-size: 13px;
-  color: var(--muted);
-  margin-top: 4px;
-}
-.progress {
-  width: 80%;
-  height: 6px;
-  background: rgba(0,0,0,0.08);
-  border-radius: 999px;
-  margin: 16px 0;
-  cursor: pointer;
-}
-.bar {
-  height: 100%;
-  width: 0%;
-  background: var(--accent);
-  border-radius: inherit;
-}
-.time {
-  width: 80%;
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--muted);
-}
-.controls {
-  display: flex;
-  gap: 24px;
-  align-items: center;
-  margin-top: 14px;
-}
-button.control {
-  background: var(--bg);
-  border: 1px solid var(--outline);
-  border-radius: 50%;
-  width: 60px;
-  height: 60px;
-  font-size: 20px;
-  cursor: pointer;
-}
-button.play {
-  width: 80px;
-  height: 80px;
-  font-size: 26px;
-}
-.library {
-  width: 100%;
-  padding: 14px 20px 120px;
-  box-sizing: border-box;
-  display: grid;
-  gap: 16px;
+.controls-right { display:flex; gap:8px; align-items:center; }
+
+/* карточка трека */
+.library-grid { width:100%; max-width:980px; display:grid; gap:14px; margin-top:14px;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
-.track-card {
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+.track-card { background:linear-gradient(var(--card), var(--card)); padding:8px; border-radius:10px; cursor:pointer;
+  transition: transform var(--transition), box-shadow var(--transition);
+  display:flex; flex-direction:column; gap:8px; align-items:flex-start;
 }
-.track-card img {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 12px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+.track-card:hover{ transform:translateY(-6px); box-shadow:0 10px 30px rgba(0,0,0,0.08); }
+.track-thumb { width:100%; aspect-ratio:1/1; border-radius:10px; overflow:hidden; background:linear-gradient(90deg,#eee,#ddd); }
+.track-thumb img{ width:100%; height:100%; object-fit:cover; display:block }
+.track-info { width:100%; }
+.track-title { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.track-artist { color:var(--muted); font-size:12px }
+
+/* --- Контекстное меню --- */
+.context-menu {
+  position:fixed; z-index:9999; min-width:180px; background:var(--card); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.12);
+  border:1px solid var(--outline); padding:6px; display:none; flex-direction:column;
 }
-.track-card .info {
-  width: 100%;
-  margin-top: 8px;
+.context-menu button { background:none; border:none; padding:10px 12px; text-align:left; cursor:pointer; color:var(--text); font-size:14px; }
+.context-menu button:hover{ background:rgba(0,0,0,0.04) }
+
+/* --- Настройки --- */
+.settings-panel { display:flex; flex-direction:column; gap:12px; margin-top:20px; width:100%; max-width:640px; align-items:center; }
+.theme-row { display:flex; gap:8px; align-items:center; }
+
+/* --- Очередь (drawer справа) --- */
+.queue-drawer {
+  position:fixed; right:12px; top:80px; width:320px; max-height:70vh; overflow:auto;
+  background:var(--card); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,0.14); padding:12px; border:1px solid var(--outline);
 }
-.track-card .title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.track-card .artist {
-  font-size: 12px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.settings {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 20px;
-}
-.settings button {
-  padding: 12px 20px;
-  font-size: 15px;
-  border: 1px solid var(--outline);
-  border-radius: 8px;
-  background: var(--bg);
-  cursor: pointer;
+.queue-item { display:flex; gap:8px; align-items:center; padding:8px; border-radius:8px; cursor:grab; }
+.queue-item img{ width:48px; height:48px; object-fit:cover; border-radius:8px }
+.queue-item .q-title { font-size:13px; font-weight:600 }
+.queue-item .q-artist { color:var(--muted); font-size:12px }
+
+/* small screens tweaks */
+@media (max-width:640px){
+  .cover{ width:84vw }
+  .queue-drawer{ display:none }
 }
 </style>
 </head>
+<body class="">
+<div class="app">
 
-<body>
-<div class="view active" id="now">
-  <div class="cover" id="cover-now"><img id="cover-img" src="" alt="Обложка"></div>
-  <div class="title" id="now-title">Нет трека</div>
-  <div class="artist" id="now-artist">—</div>
-  <div class="progress"><div class="bar" id="bar"></div></div>
-  <div class="time"><span id="time-current">0:00</span><span id="time-total">0:00</span></div>
-  <div class="controls">
-    <button class="control" id="prev">⏮</button>
-    <button class="control play" id="play">▶</button>
-    <button class="control" id="next">⏭</button>
+  <div class="views">
+    <!-- Сейчас играет -->
+    <div class="view active" id="view-now">
+      <div class="cover"><img id="now-cover" src="https://i.imgur.com/Zz4upOq.png" alt="cover"></div>
+      <div class="now-title" id="now-title">Нет трека</div>
+      <div class="now-artist" id="now-artist">—</div>
+
+      <div class="progress" id="progress"><div class="bar" id="bar"></div></div>
+      <div class="time"><span id="time-current">0:00</span><span id="time-total">0:00</span></div>
+
+      <div class="controls">
+        <div class="btn" id="prev">⏮</div>
+        <div class="btn play-btn" id="play">▶</div>
+        <div class="btn" id="next">⏭</div>
+      </div>
+    </div>
+
+    <!-- Библиотека -->
+    <div class="view" id="view-library">
+      <div class="library-top">
+        <input id="fileInput" class="search" type="file" accept="audio/*" multiple />
+        <input id="searchInput" class="search" placeholder="Поиск по названию или артисту..." />
+        <div class="controls-right">
+          <button id="themeToggle" class="btn" title="Тема">🌓</button>
+          <button id="openQueue" class="btn" title="Очередь">📜</button>
+        </div>
+      </div>
+
+      <div class="library-grid" id="libraryGrid"></div>
+    </div>
+
+    <!-- Настройки -->
+    <div class="view" id="view-settings">
+      <div class="settings-panel">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <label>Тема:</label>
+          <button id="setLight" class="btn">Светлая</button>
+          <button id="setDark" class="btn">Тёмная</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <label>Акцент:</label>
+          <input id="accentColor" type="color" value="#0b84ff" />
+        </div>
+        <div>
+          <button id="clearLibrary" class="btn">Очистить библиотеку</button>
+        </div>
+      </div>
+    </div>
   </div>
-  <audio id="player"></audio>
-</div>
 
-<div class="view" id="library">
-  <input type="file" id="fileInput" multiple accept="audio/*" />
-  <div class="library" id="tracks"></div>
-</div>
+  <!-- навигация (док) -->
+  <nav style="position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--outline);display:flex;justify-content:space-around;padding:10px 0;">
+    <button data-view="view-now" class="nav-btn active">Сейчас играет</button>
+    <button data-view="view-library" class="nav-btn">Библиотека</button>
+    <button data-view="view-settings" class="nav-btn">Настройки</button>
+  </nav>
 
-<div class="view" id="settings">
-  <div class="cover"><img src="https://i.imgur.com/Zz4upOq.png" alt="Обложка" /></div>
-  <div class="settings">
-    <button id="connectDrive">Подключить Google Drive</button>
-    <button id="uploadDrive">Загрузить треки в Drive</button>
+  <!-- Context menu -->
+  <div id="contextMenu" class="context-menu" role="menu" aria-hidden="true">
+    <button id="ctxAddQueue">Добавить в очередь</button>
+    <button id="ctxInfo">Инфо</button>
+    <button id="ctxDelete" style="color:#d64">Удалить</button>
   </div>
-</div>
 
-<nav>
-  <button class="active" data-view="now">Сейчас играет</button>
-  <button data-view="library">Библиотека</button>
-  <button data-view="settings">Настройки</button>
-</nav>
+  <!-- Очередь -->
+  <div id="queueDrawer" class="queue-drawer" style="display:none">
+    <h4 style="margin:6px 0 8px 0">Очередь</h4>
+    <div id="queueList"></div>
+  </div>
+
+  <!-- Audio element -->
+  <audio id="audio" crossorigin="anonymous"></audio>
+</div>
 
 <script>
-const CLIENT_ID = "215344556129-r6crslrt9iu44jl4gvfp32mc985p204n.apps.googleusercontent.com";
-let token = null;
+/* ================= Configuration ================= */
+const CLIENT_ID = "215344556129-r6crslrt9iu44jl4gvfp32mc985p204n.apps.googleusercontent.com"; // если нужен Drive
+/* ================================================= */
 
+/* ---- State ---- */
 const views = document.querySelectorAll('.view');
-const navButtons = document.querySelectorAll('nav button');
-const player = document.getElementById('player');
-const bar = document.getElementById('bar');
+const navBtns = document.querySelectorAll('.nav-btn');
+const audio = document.getElementById('audio');
+const nowCover = document.getElementById('now-cover');
 const nowTitle = document.getElementById('now-title');
 const nowArtist = document.getElementById('now-artist');
-const coverImg = document.getElementById('cover-img');
-let currentTrack = 0;
-let tracks = [];
+const bar = document.getElementById('bar');
+const timeCurrent = document.getElementById('time-current');
+const timeTotal = document.getElementById('time-total');
 
-// переключение вкладок
-navButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    navButtons.forEach(b => b.classList.remove('active'));
+let tracks = []; // {id, file, title, artist, imgUrl, mime}
+let filtered = []; // filtered indices
+let currentIndex = -1;
+let queue = []; // array of indices into tracks
+let theme = localStorage.getItem('mp_theme') || 'light';
+
+/* Utilities */
+function fmtTime(sec){
+  if (!sec || isNaN(sec)) return '0:00';
+  const m = Math.floor(sec/60), s = Math.floor(sec%60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function uid(){ return Math.random().toString(36).slice(2,9) }
+
+/* ---- Navigation with fade ---- */
+navBtns.forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    navBtns.forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    views.forEach(v => v.classList.remove('active'));
-    document.getElementById(btn.dataset.view).classList.add('active');
+    const id = btn.dataset.view;
+    views.forEach(v=> v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
   });
 });
 
-// загрузка треков
-document.getElementById('fileInput').addEventListener('change', e => {
-  const files = [...e.target.files];
-  files.forEach(file => {
-    jsmediatags.read(file, {
-      onSuccess: tag => {
-        const title = tag.tags.title || file.name;
-        const artist = tag.tags.artist || 'Неизвестный';
-        let imgUrl = '';
-        if (tag.tags.picture) {
-          const data = tag.tags.picture.data;
-          const format = tag.tags.picture.format;
-          const base64 = btoa(String.fromCharCode(...data));
-          imgUrl = `data:${format};base64,${base64}`;
-        }
-        tracks.push({ file, title, artist, imgUrl });
-        updateLibrary();
-      },
-      onError: () => {
-        tracks.push({ file, title: file.name, artist: '—', imgUrl: '' });
-        updateLibrary();
+/* ---- Theme handling ---- */
+function applyTheme(){
+  if (theme === 'dark') document.body.classList.add('dark');
+  else document.body.classList.remove('dark');
+  const accent = localStorage.getItem('mp_accent') || '#0b84ff';
+  document.documentElement.style.setProperty('--accent', accent);
+}
+applyTheme();
+
+document.getElementById('setDark').addEventListener('click', ()=>{ theme='dark'; localStorage.setItem('mp_theme','dark'); applyTheme();});
+document.getElementById('setLight').addEventListener('click', ()=>{ theme='light'; localStorage.setItem('mp_theme','light'); applyTheme();});
+document.getElementById('accentColor').addEventListener('input', (e)=>{ localStorage.setItem('mp_accent', e.target.value); applyTheme(); });
+
+/* quick theme toggle */
+document.getElementById('themeToggle').addEventListener('click', ()=>{
+  theme = (theme==='dark') ? 'light' : 'dark';
+  localStorage.setItem('mp_theme', theme);
+  applyTheme();
+});
+
+/* ---- File input (supports all audio/* formats) ---- */
+const fileInput = document.getElementById('fileInput');
+fileInput.addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files || []);
+  await addFiles(files);
+  renderLibrary();
+});
+
+/* Add files: read tags where possible, gracefully degrade */
+async function addFiles(files){
+  for (const file of files){
+    const id = uid();
+    const entry = { id, file, title: file.name.replace(/\.[^/.]+$/,''), artist: 'Неизвестный', imgUrl:'', mime: file.type || 'audio/*' };
+    // try read tags; jsmediatags supports many but not all formats; wrap in promise
+    await new Promise((resolve)=>{
+      try {
+        jsmediatags.read(file, {
+          onSuccess: tag => {
+            if (tag.tags.title) entry.title = tag.tags.title;
+            if (tag.tags.artist) entry.artist = tag.tags.artist;
+            const pic = tag.tags.picture;
+            if (pic && pic.data && pic.format){
+              const base64 = btoa(String.fromCharCode(...pic.data));
+              entry.imgUrl = `data:${pic.format};base64,${base64}`;
+            }
+            tracks.push(entry);
+            resolve();
+          },
+          onError: (err) => {
+            // fallback: if file is something like m4a/wav without tags, use default
+            tracks.push(entry);
+            resolve();
+          }
+        });
+      } catch(err){
+        tracks.push(entry);
+        resolve();
       }
     });
-  });
-});
+  }
+  filtered = tracks.map((_,i)=>i);
+}
 
-function updateLibrary() {
-  const lib = document.getElementById('tracks');
-  lib.innerHTML = '';
-  tracks.forEach((t, i) => {
-    const div = document.createElement('div');
-    div.className = 'track-card';
-    div.innerHTML = `
-      <img src="${t.imgUrl || 'https://i.imgur.com/Zz4upOq.png'}" alt="">
-      <div class="info">
-        <div class="title">${t.title}</div>
-        <div class="artist">${t.artist}</div>
-      </div>`;
-    div.onclick = () => playTrack(i);
-    lib.appendChild(div);
+/* ---- Render library (search applied) ---- */
+const libraryGrid = document.getElementById('libraryGrid');
+function renderLibrary(){
+  libraryGrid.innerHTML = '';
+  filtered.forEach((idx)=>{
+    const t = tracks[idx];
+    const card = document.createElement('div');
+    card.className = 'track-card';
+    // inner
+    const thumb = document.createElement('div'); thumb.className='track-thumb';
+    const img = document.createElement('img'); img.src = t.imgUrl || 'https://i.imgur.com/Zz4upOq.png';
+    thumb.appendChild(img);
+    const info = document.createElement('div'); info.className='track-info';
+    const title = document.createElement('div'); title.className='track-title'; title.textContent = t.title;
+    const artist = document.createElement('div'); artist.className='track-artist'; artist.textContent = t.artist;
+    info.appendChild(title); info.appendChild(artist);
+    // three-dot button
+    const dot = document.createElement('button'); dot.textContent='⋯'; dot.style.marginLeft='auto'; dot.style.border='none'; dot.style.background='none'; dot.style.cursor='pointer';
+    // assemble
+    card.appendChild(thumb); card.appendChild(info);
+    card.appendChild(dot);
+    // click play
+    card.addEventListener('click', (e)=>{
+      // if clicked dot — don't play
+      if (e.target === dot) return;
+      playIndex(idx);
+    });
+    // context menu via dot
+    dot.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      showContextMenu(ev.clientX, ev.clientY, idx);
+    });
+    libraryGrid.appendChild(card);
   });
 }
 
-function playTrack(i) {
-  const t = tracks[i];
-  currentTrack = i;
+/* ---- Search --- */
+const searchInput = document.getElementById('searchInput');
+searchInput.addEventListener('input', ()=> {
+  const q = searchInput.value.trim().toLowerCase();
+  if (!q) filtered = tracks.map((_,i)=>i);
+  else filtered = tracks.map((t,i)=> ({t,i})).filter(x=>{
+    const T = x.t || tracks[x.i];
+    return (T.title||'').toLowerCase().includes(q) || (T.artist||'').toLowerCase().includes(q);
+  }).map(x=>x.i);
+  renderLibrary();
+});
+
+/* ---- Play logic ---- */
+function playIndex(idx){
+  if (idx == null || !tracks[idx]) return;
+  currentIndex = idx;
+  const t = tracks[idx];
   nowTitle.textContent = t.title;
   nowArtist.textContent = t.artist;
-  coverImg.src = t.imgUrl || 'https://i.imgur.com/Zz4upOq.png';
-  player.src = URL.createObjectURL(t.file);
-  player.play();
-  document.getElementById('play').textContent = '⏸';
+  nowCover.src = t.imgUrl || 'https://i.imgur.com/Zz4upOq.png';
+  // revoke previous objectURLs?
+  if (audio.src) { try{ URL.revokeObjectURL(audio.src); }catch(e){} }
+  audio.src = URL.createObjectURL(t.file);
+  audio.play();
+  document.querySelector('.play-btn').textContent = '⏸';
 }
 
-document.getElementById('play').addEventListener('click', () => {
-  if (player.paused) {
-    player.play();
-    document.getElementById('play').textContent = '⏸';
-  } else {
-    player.pause();
-    document.getElementById('play').textContent = '▶';
+/* prev/next controls */
+document.getElementById('prev').addEventListener('click', ()=> {
+  if (queue.length){
+    // prev in queue: go to previous queued item if exists, else wrap
+    const pos = queue.indexOf(currentIndex);
+    const prevIdx = (pos>0) ? queue[pos-1] : queue[queue.length-1];
+    playIndex(prevIdx);
+    return;
+  }
+  if (tracks.length){
+    const all = tracks.map((_,i)=>i);
+    const pos = all.indexOf(currentIndex);
+    const next = (pos<=0) ? all[all.length-1] : all[pos-1];
+    playIndex(next);
+  }
+});
+document.getElementById('next').addEventListener('click', ()=> {
+  if (queue.length){
+    // play next in queue; if current is not in queue, play first
+    const pos = queue.indexOf(currentIndex);
+    const nextIdx = (pos>=0 && pos < queue.length-1) ? queue[pos+1] : queue[0];
+    playIndex(nextIdx);
+    return;
+  }
+  if (tracks.length){
+    const all = tracks.map((_,i)=>i);
+    const pos = all.indexOf(currentIndex);
+    const next = (pos===-1 || pos===all.length-1) ? all[0] : all[pos+1];
+    playIndex(next);
   }
 });
 
-player.ontimeupdate = () => {
-  if (player.duration) bar.style.width = `${(player.currentTime / player.duration) * 100}%`;
-};
+/* play/pause button */
+document.querySelector('.play-btn').addEventListener('click', ()=>{
+  if (audio.paused) { audio.play(); document.querySelector('.play-btn').textContent='⏸'; }
+  else { audio.pause(); document.querySelector('.play-btn').textContent='▶'; }
+});
 
-// Google Drive
-function loadGapi() {
-  gapi.load("client:picker", async () => {
-    await gapi.client.init({
-      clientId: CLIENT_ID,
-      discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-      scope: "https://www.googleapis.com/auth/drive.file"
-    });
+/* update progress and times */
+audio.addEventListener('timeupdate', ()=> {
+  if (audio.duration) {
+    bar.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+    timeCurrent.textContent = fmtTime(audio.currentTime);
+    timeTotal.textContent = fmtTime(audio.duration);
+  }
+});
+
+/* seek on progress click */
+document.getElementById('progress').addEventListener('click', (e)=> {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  if (!isNaN(audio.duration)) audio.currentTime = pct * audio.duration;
+});
+
+/* when track ends, auto-play next (respect queue) */
+audio.addEventListener('ended', ()=> {
+  if (queue.length){
+    // if current in queue, play next; else play first in queue
+    const pos = queue.indexOf(currentIndex);
+    const next = (pos>=0 && pos < queue.length-1) ? queue[pos+1] : queue[0];
+    playIndex(next);
+  } else {
+    document.getElementById('next').click();
+  }
+});
+
+/* ---- Context menu logic ---- */
+const ctx = document.getElementById('contextMenu');
+let ctxTargetIndex = null;
+function showContextMenu(x,y,index){
+  ctxTargetIndex = index;
+  ctx.style.left = x + 'px';
+  ctx.style.top = y + 'px';
+  ctx.style.display = 'flex';
+  ctx.setAttribute('aria-hidden','false');
+}
+function hideContextMenu(){
+  ctx.style.display = 'none';
+  ctx.setAttribute('aria-hidden','true');
+  ctxTargetIndex = null;
+}
+document.addEventListener('click', (e)=> {
+  if (!ctx.contains(e.target)) hideContextMenu();
+});
+document.getElementById('ctxAddQueue').addEventListener('click', ()=>{
+  if (ctxTargetIndex == null) return hideContextMenu();
+  if (!queue.includes(ctxTargetIndex)) queue.push(ctxTargetIndex);
+  renderQueue();
+  hideContextMenu();
+});
+document.getElementById('ctxDelete').addEventListener('click', ()=>{
+  if (ctxTargetIndex == null) return hideContextMenu();
+  // remove from tracks and adjust queue
+  tracks = tracks.filter(t=>t.id !== tracks[ctxTargetIndex].id);
+  // rebuild indices mapping
+  filtered = tracks.map((_,i)=>i);
+  queue = queue.filter(i => i !== ctxTargetIndex).map(i => (i>ctxTargetIndex? i-1 : i));
+  if (currentIndex === ctxTargetIndex) { audio.pause(); audio.src=''; currentIndex=-1; nowTitle.textContent='Нет трека'; nowArtist.textContent='—'; nowCover.src='https://i.imgur.com/Zz4upOq.png'; }
+  renderLibrary(); renderQueue();
+  hideContextMenu();
+});
+document.getElementById('ctxInfo').addEventListener('click', ()=>{
+  if (ctxTargetIndex == null) return hideContextMenu();
+  const t = tracks[ctxTargetIndex];
+  alert(`Инфо:\nНазвание: ${t.title}\nИсполнитель: ${t.artist}\nФормат: ${t.mime || t.file.type}\nРазмер: ${Math.round(t.file.size/1024)} KB`);
+  hideContextMenu();
+});
+
+/* ---- Queue drawer ---- */
+const queueDrawer = document.getElementById('queueDrawer');
+document.getElementById('openQueue').addEventListener('click', ()=> {
+  queueDrawer.style.display = (queueDrawer.style.display === 'none' || queueDrawer.style.display==='') ? 'block' : 'none';
+  renderQueue();
+});
+function renderQueue(){
+  const el = document.getElementById('queueList');
+  el.innerHTML = '';
+  queue.forEach((idx, pos)=>{
+    const t = tracks[idx];
+    if (!t) return;
+    const div = document.createElement('div'); div.className='queue-item';
+    const img = document.createElement('img'); img.src = t.imgUrl || 'https://i.imgur.com/Zz4upOq.png';
+    const info = document.createElement('div'); info.style.flex='1';
+    const title = document.createElement('div'); title.className='q-title'; title.textContent = t.title;
+    const artist = document.createElement('div'); artist.className='q-artist'; artist.textContent = t.artist;
+    info.appendChild(title); info.appendChild(artist);
+    const rem = document.createElement('button'); rem.textContent='✖'; rem.style.border='none'; rem.style.background='none'; rem.style.cursor='pointer';
+    rem.addEventListener('click', ()=> { queue.splice(pos,1); renderQueue(); });
+    div.appendChild(img); div.appendChild(info); div.appendChild(rem);
+    div.addEventListener('click', ()=> playIndex(idx));
+    el.appendChild(div);
   });
 }
-loadGapi();
 
-document.getElementById('connectDrive').onclick = async () => {
-  const GoogleAuth = gapi.auth2.getAuthInstance();
-  const user = await GoogleAuth.signIn();
-  token = user.getAuthResponse().access_token;
-  alert("Google Drive подключен!");
-};
+/* ---- Clear library --- */
+document.getElementById('clearLibrary').addEventListener('click', ()=>{
+  if (!confirm('Очистить библиотеку?')) return;
+  tracks = []; filtered = []; queue = []; currentIndex=-1; audio.pause(); audio.src='';
+  renderLibrary(); renderQueue();
+});
 
-document.getElementById('uploadDrive').onclick = async () => {
-  if (!token) return alert("Сначала подключи Google Drive");
-  for (const t of tracks) {
-    const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify({
-      name: t.title, mimeType: "audio/mpeg"
-    })], { type: "application/json" }));
-    form.append("file", t.file);
-    await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + token },
-      body: form
-    });
+/* ---- Drag & Drop add --- */
+window.addEventListener('dragover', (e)=> e.preventDefault());
+window.addEventListener('drop', async (e)=>{
+  e.preventDefault();
+  const files = Array.from(e.dataTransfer.files).filter(f=>f.type && f.type.startsWith('audio'));
+  if (files.length) { await addFiles(files); renderLibrary(); }
+});
+
+/* ---- Persist library in localStorage (only metadata) --- */
+function saveState(){
+  try{
+    const small = tracks.map(t=>({id:t.id,title:t.title,artist:t.artist, mime:t.mime}));
+    localStorage.setItem('mp_tracks_meta', JSON.stringify(small));
+    localStorage.setItem('mp_queue', JSON.stringify(queue));
+    localStorage.setItem('mp_theme', theme);
+    localStorage.setItem('mp_accent', document.documentElement.style.getPropertyValue('--accent') || '#0b84ff');
+  }catch(e){}
+}
+function loadState(){
+  try{
+    const q = JSON.parse(localStorage.getItem('mp_queue') || '[]');
+    queue = Array.isArray(q)? q : [];
+    const savedAccent = localStorage.getItem('mp_accent');
+    if (savedAccent) { document.getElementById('accentColor').value = savedAccent; applyTheme(); }
+  }catch(e){}
+}
+window.addEventListener('beforeunload', saveState);
+loadState();
+
+/* ---- Initial render calls ---- */
+filtered = []; renderLibrary(); renderQueue();
+
+/* ---- Google Drive minimal init (optional) ---- */
+function tryInitGapi(){
+  if (!window.gapi) return;
+  gapi.load('client:auth2', async ()=>{
+    try{
+      await gapi.client.init({clientId: CLIENT_ID, discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"], scope: "https://www.googleapis.com/auth/drive.file"});
+    }catch(e){ console.warn('gapi init', e) }
+  });
+}
+tryInitGapi();
+
+/* === Accessibility / keyboard: space toggles play/pause === */
+document.addEventListener('keydown', (e)=>{
+  if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    if (audio.paused) { audio.play(); document.querySelector('.play-btn').textContent='⏸'; }
+    else { audio.pause(); document.querySelector('.play-btn').textContent='▶'; }
   }
-  alert("Треки загружены в Google Drive!");
-};
+});
 </script>
 </body>
 </html>
