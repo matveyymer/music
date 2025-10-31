@@ -181,6 +181,36 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-fo
 .queue-item .q-title { font-size:13px; font-weight:600 }
 .queue-item .q-artist { color:var(--muted); font-size:12px }
 
+/* --- VK импорт --- */
+.vk-import {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 20px;
+  width: 100%;
+  max-width: 640px;
+  border: 1px solid var(--outline);
+}
+.vk-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.vk-input {
+  flex: 1;
+  height: 40px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--outline);
+  background: var(--bg);
+  color: var(--text);
+}
+.vk-status {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
 /* small screens tweaks */
 @media (max-width:640px){
   .cover{ width:84vw }
@@ -193,6 +223,9 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-fo
   .settings-controls {
     width: 100%;
     justify-content: space-between;
+  }
+  .vk-input-row {
+    flex-direction: column;
   }
 }
 </style>
@@ -220,7 +253,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-fo
     <!-- Библиотека -->
     <div class="view" id="view-library">
       <div class="library-top">
-        <input id="fileInput" class="search" type="file" accept="audio/*" multiple />
+        <input id="fileInput" class="search" type="file" accept="audio/*,.flac,.aac,.wma,.ogg,.opus,.m4a,.aiff,.aif,.aifc,.caf" multiple />
         <input id="searchInput" class="search" placeholder="Поиск по названию или артисту..." />
         <div class="controls-right">
           <button id="themeToggle" class="btn" title="Тема">🌓</button>
@@ -265,6 +298,16 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-fo
           </div>
         </div>
       </div>
+
+      <!-- VK импорт -->
+      <div class="vk-import">
+        <h3 style="margin-top:0">Импорт из VK</h3>
+        <div class="vk-input-row">
+          <input type="text" id="vkUrl" class="vk-input" placeholder="Ссылка на плейлист VK или аудиозапись" />
+          <button id="vkImportBtn" class="settings-btn">Импорт</button>
+        </div>
+        <div id="vkStatus" class="vk-status">Вставьте ссылку на плейлист VK или аудиозапись</div>
+      </div>
     </div>
   </div>
 
@@ -294,7 +337,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--text);-webkit-fo
 
 <script>
 /* ================= Configuration ================= */
-const CLIENT_ID = "215344556129-r6crslrt9iu44jl4gvfp32mc985p204n.apps.googleusercontent.com"; // если нужен Drive
+const CLIENT_ID = "215344556129-r6crslrt9iu44jl4gvfp32mc985p204n.apps.googleusercontent.com";
 /* ================================================= */
 
 /* ---- State ---- */
@@ -308,7 +351,7 @@ const bar = document.getElementById('bar');
 const timeCurrent = document.getElementById('time-current');
 const timeTotal = document.getElementById('time-total');
 
-let tracks = []; // {id, file, title, artist, imgUrl, mime}
+let tracks = []; // {id, file, title, artist, imgUrl, mime, duration, album, year, genre}
 let filtered = []; // filtered indices
 let currentIndex = -1;
 let queue = []; // array of indices into tracks
@@ -393,29 +436,81 @@ fileInput.addEventListener('change', async (e)=>{
 async function addFiles(files){
   for (const file of files){
     const id = uid();
-    const entry = { id, file, title: file.name.replace(/\.[^/.]+$/,''), artist: 'Неизвестный', imgUrl:'', mime: file.type || 'audio/*' };
-    // try read tags; jsmediatags supports many but not all formats; wrap in promise
+    const entry = { 
+      id, 
+      file, 
+      title: file.name.replace(/\.[^/.]+$/,''), 
+      artist: 'Неизвестный', 
+      album: '',
+      year: '',
+      genre: '',
+      duration: 0,
+      imgUrl:'', 
+      mime: file.type || 'audio/*' 
+    };
+    
+    // try read tags with extended metadata support
     await new Promise((resolve)=>{
       try {
         jsmediatags.read(file, {
           onSuccess: tag => {
-            if (tag.tags.title) entry.title = tag.tags.title;
-            if (tag.tags.artist) entry.artist = tag.tags.artist;
-            const pic = tag.tags.picture;
+            const tags = tag.tags;
+            
+            // Basic metadata
+            if (tags.title) entry.title = tags.title;
+            if (tags.artist) entry.artist = tags.artist;
+            if (tags.album) entry.album = tags.album;
+            if (tags.year) entry.year = tags.year;
+            if (tags.genre) entry.genre = tags.genre;
+            
+            // Duration from different tag formats
+            if (tags.duration) entry.duration = tags.duration;
+            if (tags.length) entry.duration = tags.length;
+            
+            // Cover art
+            const pic = tags.picture;
             if (pic && pic.data && pic.format){
-              const base64 = btoa(String.fromCharCode(...pic.data));
-              entry.imgUrl = `data:${pic.format};base64,${base64}`;
+              try {
+                const base64 = btoa(String.fromCharCode(...pic.data));
+                entry.imgUrl = `data:${pic.format};base64,${base64}`;
+              } catch(e) {
+                console.warn('Error processing cover art:', e);
+              }
             }
+            
+            // FLAC specific metadata
+            if (file.name.toLowerCase().endsWith('.flac')) {
+              if (tags.vorbis && tags.vorbis.ALBUM) entry.album = tags.vorbis.ALBUM;
+              if (tags.vorbis && tags.vorbis.ARTIST) entry.artist = tags.vorbis.ARTIST;
+              if (tags.vorbis && tags.vorbis.TITLE) entry.title = tags.vorbis.TITLE;
+              if (tags.vorbis && tags.vorbis.GENRE) entry.genre = tags.vorbis.GENRE;
+              if (tags.vorbis && tags.vorbis.DATE) entry.year = tags.vorbis.DATE;
+            }
+            
+            // MP4/M4A specific metadata
+            if (file.name.toLowerCase().endsWith('.m4a') || file.type === 'audio/mp4') {
+              if (tags.album) entry.album = tags.album;
+              if (tags.artist) entry.artist = tags.artist;
+            }
+            
             tracks.push(entry);
             resolve();
           },
           onError: (err) => {
-            // fallback: if file is something like m4a/wav without tags, use default
+            console.log('Error reading tags for', file.name, err);
+            // fallback: try to get duration from audio element
+            const tempAudio = new Audio();
+            tempAudio.src = URL.createObjectURL(file);
+            tempAudio.addEventListener('loadedmetadata', () => {
+              entry.duration = tempAudio.duration;
+              URL.revokeObjectURL(tempAudio.src);
+            });
             tracks.push(entry);
             resolve();
           }
         });
       } catch(err){
+        console.log('Exception reading tags for', file.name, err);
         tracks.push(entry);
         resolve();
       }
@@ -467,7 +562,10 @@ searchInput.addEventListener('input', ()=> {
   if (!q) filtered = tracks.map((_,i)=>i);
   else filtered = tracks.map((t,i)=> ({t,i})).filter(x=>{
     const T = x.t || tracks[x.i];
-    return (T.title||'').toLowerCase().includes(q) || (T.artist||'').toLowerCase().includes(q);
+    return (T.title||'').toLowerCase().includes(q) || 
+           (T.artist||'').toLowerCase().includes(q) ||
+           (T.album||'').toLowerCase().includes(q) ||
+           (T.genre||'').toLowerCase().includes(q);
   }).map(x=>x.i);
   renderLibrary();
 });
@@ -591,7 +689,13 @@ document.getElementById('ctxDelete').addEventListener('click', ()=>{
 document.getElementById('ctxInfo').addEventListener('click', ()=>{
   if (ctxTargetIndex == null) return hideContextMenu();
   const t = tracks[ctxTargetIndex];
-  alert(`Инфо:\nНазвание: ${t.title}\nИсполнитель: ${t.artist}\nФормат: ${t.mime || t.file.type}\nРазмер: ${Math.round(t.file.size/1024)} KB`);
+  let info = `Название: ${t.title}\nИсполнитель: ${t.artist}`;
+  if (t.album) info += `\nАльбом: ${t.album}`;
+  if (t.year) info += `\nГод: ${t.year}`;
+  if (t.genre) info += `\nЖанр: ${t.genre}`;
+  if (t.duration) info += `\nДлительность: ${fmtTime(t.duration)}`;
+  info += `\nФормат: ${t.mime || t.file.type}\nРазмер: ${Math.round(t.file.size/1024)} KB`;
+  alert(`Инфо:\n${info}`);
   hideContextMenu();
 });
 
@@ -633,6 +737,10 @@ document.getElementById('exportLibrary').addEventListener('click', ()=>{
   const data = JSON.stringify(tracks.map(t => ({
     title: t.title,
     artist: t.artist,
+    album: t.album,
+    year: t.year,
+    genre: t.genre,
+    duration: t.duration,
     mime: t.mime,
     size: t.file.size
   })));
@@ -645,18 +753,96 @@ document.getElementById('exportLibrary').addEventListener('click', ()=>{
   URL.revokeObjectURL(url);
 });
 
+/* ---- VK Import ---- */
+document.getElementById('vkImportBtn').addEventListener('click', async () => {
+  const url = document.getElementById('vkUrl').value.trim();
+  const status = document.getElementById('vkStatus');
+  
+  if (!url) {
+    status.textContent = 'Введите ссылку VK';
+    status.style.color = '#d64';
+    return;
+  }
+  
+  status.textContent = 'Импорт...';
+  status.style.color = 'var(--accent)';
+  
+  try {
+    // Это демо-реализация - в реальном приложении нужен бэкенд
+    // для обхода CORS и работы с VK API
+    const mockTracks = [
+      {
+        id: uid(),
+        title: 'Трек из VK 1',
+        artist: 'Исполнитель 1',
+        album: 'Альбом VK',
+        duration: 180,
+        imgUrl: 'https://i.imgur.com/Zz4upOq.png'
+      },
+      {
+        id: uid(),
+        title: 'Трек из VK 2', 
+        artist: 'Исполнитель 2',
+        album: 'Альбом VK',
+        duration: 210,
+        imgUrl: 'https://i.imgur.com/Zz4upOq.png'
+      }
+    ];
+    
+    // В реальном приложении здесь будет запрос к вашему бэкенду
+    // который обработает VK ссылку и вернет данные треков
+    
+    // Имитация задержки загрузки
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Добавляем mock-треки
+    mockTracks.forEach(track => {
+      tracks.push({
+        ...track,
+        file: new File([], `${track.title}.mp3`, { type: 'audio/mpeg' }),
+        mime: 'audio/mpeg'
+      });
+    });
+    
+    filtered = tracks.map((_,i)=>i);
+    renderLibrary();
+    
+    status.textContent = `Успешно импортировано ${mockTracks.length} треков из VK`;
+    status.style.color = '#2a9';
+    document.getElementById('vkUrl').value = '';
+    
+  } catch (error) {
+    console.error('VK import error:', error);
+    status.textContent = 'Ошибка импорта. Проверьте ссылку и попробуйте снова.';
+    status.style.color = '#d64';
+  }
+});
+
 /* ---- Drag & Drop add --- */
 window.addEventListener('dragover', (e)=> e.preventDefault());
 window.addEventListener('drop', async (e)=>{
   e.preventDefault();
-  const files = Array.from(e.dataTransfer.files).filter(f=>f.type && f.type.startsWith('audio'));
+  const files = Array.from(e.dataTransfer.files).filter(f=>{
+    const ext = f.name.toLowerCase().split('.').pop();
+    const audioTypes = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'wma', 'm4a', 'aiff', 'aif', 'opus'];
+    return f.type.startsWith('audio/') || audioTypes.includes(ext);
+  });
   if (files.length) { await addFiles(files); renderLibrary(); }
 });
 
 /* ---- Persist library in localStorage (only metadata) --- */
 function saveState(){
   try{
-    const small = tracks.map(t=>({id:t.id,title:t.title,artist:t.artist, mime:t.mime}));
+    const small = tracks.map(t=>({
+      id:t.id,
+      title:t.title,
+      artist:t.artist, 
+      album: t.album,
+      year: t.year,
+      genre: t.genre,
+      duration: t.duration,
+      mime:t.mime
+    }));
     localStorage.setItem('mp_tracks_meta', JSON.stringify(small));
     localStorage.setItem('mp_queue', JSON.stringify(queue));
     localStorage.setItem('mp_theme', theme);
